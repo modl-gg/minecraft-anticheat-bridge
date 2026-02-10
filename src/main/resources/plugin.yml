@@ -5,3 +5,10 @@ author: modl
 description: Bridges Grim and Polar anticheat detections to the MODL panel
 api-version: '1.13'
 softdepend: [GrimAC, Polar, modl]
+commands:
+  anticheat-ban:
+    description: Console-only command to issue an anticheat ban via MODL
+    usage: /<command> <player> [reason...]
+  anticheat-kick:
+    description: Console-only command to issue an anticheat kick via MODL
+    usage: /<command> <player> [reason...]

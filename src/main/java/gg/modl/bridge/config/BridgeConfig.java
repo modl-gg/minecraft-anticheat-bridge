@@ -124,6 +124,19 @@ public class BridgeConfig {
         return config.getBoolean("execute-kicks-locally", true);
     }
 
+    // Console command settings
+    public int getCommandBanTypeOrdinal() {
+        return config.getInt("commands.ban-type-ordinal", getDefaultPunishTypeOrdinal());
+    }
+
+    public int getCommandKickTypeOrdinal() {
+        return config.getInt("commands.kick-type-ordinal", 0);
+    }
+
+    public long getCommandBanDuration() {
+        return config.getLong("commands.ban-duration", getDefaultPunishDuration());
+    }
+
     public boolean isValid() {
         String apiKey = getApiKey();
         String baseUrl = getBaseUrl();

@@ -50,3 +50,11 @@ checks:
       punish-threshold: 35
 
 execute-kicks-locally: true
+
+# Console command settings for /anticheat-ban and /anticheat-kick
+# These allow external anticheats to issue punishments via console commands
+# Useful when the main modl plugin runs on a proxy server
+commands:
+  ban-type-ordinal: 14    # Punishment type ordinal for /anticheat-ban (14 = Cheating)
+  kick-type-ordinal: 0    # Punishment type ordinal for /anticheat-kick (0 = Kick)
+  ban-duration: 604800    # Default ban duration in seconds (-1 for permanent)

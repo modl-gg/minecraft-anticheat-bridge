@@ -1,6 +1,7 @@
 package gg.modl.bridge;
 
 import gg.modl.bridge.action.ActionExecutor;
+import gg.modl.bridge.command.AnticheatPunishCommand;
 import gg.modl.bridge.config.BridgeConfig;
 import gg.modl.bridge.detection.ViolationTracker;
 import gg.modl.bridge.hook.AntiCheatHook;
@@ -68,6 +69,11 @@ public class ModlBridgePlugin extends JavaPlugin implements Listener {
 
         // Register quit listener to clean up violation data
         getServer().getPluginManager().registerEvents(this, this);
+
+        // Register console commands
+        AnticheatPunishCommand punishCommand = new AnticheatPunishCommand(this, bridgeConfig, httpClient);
+        getCommand("anticheat-ban").setExecutor(punishCommand);
+        getCommand("anticheat-kick").setExecutor(punishCommand);
 
         // Hook into GrimAC if available
         GrimHook grimHook = new GrimHook(this, violationTracker, actionExecutor);
