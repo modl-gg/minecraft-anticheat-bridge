@@ -22,17 +22,15 @@ public class BridgeHttpClient {
 
     private final String baseUrl;
     private final String apiKey;
-    private final String serverDomain;
     private final boolean debug;
     private final HttpClient httpClient;
     private final ExecutorService executor;
     private final Gson gson;
     private final Logger logger;
 
-    public BridgeHttpClient(String baseUrl, String apiKey, String serverDomain, boolean debug, Logger logger) {
+    public BridgeHttpClient(String baseUrl, String apiKey, boolean debug, Logger logger) {
         this.baseUrl = baseUrl;
         this.apiKey = apiKey;
-        this.serverDomain = serverDomain;
         this.debug = debug;
         this.logger = logger;
         this.gson = new Gson();
@@ -55,7 +53,6 @@ public class BridgeHttpClient {
         return HttpRequest.newBuilder()
                 .uri(URI.create(baseUrl + endpoint))
                 .header("X-API-Key", apiKey)
-                .header("X-Server-Domain", serverDomain)
                 .header("Content-Type", "application/json");
     }
 
@@ -90,38 +87,37 @@ public class BridgeHttpClient {
     private <T> CompletableFuture<T> sendAsync(HttpRequest request, Class<T> responseType) {
         return httpClient.sendAsync(request, HttpResponse.BodyHandlers.ofString())
                 .thenApply(response -> {
-                    if (debug) {
-                        logger.info("[ModlBridge] Response " + response.statusCode() + ": " + response.body());
-                    }
+                    String body = response.body();
+                    int status = response.statusCode();
 
-                    if (response.statusCode() >= 200 && response.statusCode() < 300) {
-                        if (responseType == Void.class) {
+                    logger.info("[ModlBridge] Response " + status + (debug ? ": " + body : ""));
+
+                    if (status >= 200 && status < 300) {
+                        if (responseType == Void.class || body == null || body.isEmpty()) {
                             return null;
                         }
-                        return gson.fromJson(response.body(), responseType);
+                        try {
+                            return gson.fromJson(body, responseType);
+                        } catch (Exception e) {
+                            logger.warning("[ModlBridge] Failed to parse success response: " + body);
+                            throw new RuntimeException("Failed to parse API response: " + body);
+                        }
                     }
 
                     String errorMessage;
                     try {
-                        JsonObject errorResponse = gson.fromJson(response.body(), JsonObject.class);
+                        JsonObject errorResponse = gson.fromJson(body, JsonObject.class);
                         if (errorResponse != null && errorResponse.has("message")) {
                             errorMessage = errorResponse.get("message").getAsString();
                         } else {
-                            errorMessage = "HTTP " + response.statusCode() + ": " + response.body();
+                            errorMessage = "HTTP " + status + ": " + body;
                         }
                     } catch (Exception e) {
-                        errorMessage = "HTTP " + response.statusCode() + ": " + response.body();
+                        errorMessage = "HTTP " + status + ": " + body;
                     }
 
                     logger.warning("[ModlBridge] API request failed: " + errorMessage);
                     throw new RuntimeException(errorMessage);
-                })
-                .exceptionally(throwable -> {
-                    if (throwable instanceof RuntimeException) {
-                        throw (RuntimeException) throwable;
-                    }
-                    logger.severe("[ModlBridge] HTTP request failed: " + throwable.getMessage());
-                    throw new RuntimeException("HTTP request failed", throwable);
                 });
     }
 

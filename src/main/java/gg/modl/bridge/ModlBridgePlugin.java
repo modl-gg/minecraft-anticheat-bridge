@@ -1,13 +1,14 @@
 package gg.modl.bridge;
 
-import gg.modl.bridge.action.ActionExecutor;
 import gg.modl.bridge.command.AnticheatPunishCommand;
+import gg.modl.bridge.command.AnticheatReportCommand;
 import gg.modl.bridge.config.BridgeConfig;
 import gg.modl.bridge.detection.ViolationTracker;
 import gg.modl.bridge.hook.AntiCheatHook;
 import gg.modl.bridge.hook.GrimHook;
 import gg.modl.bridge.hook.PolarHook;
 import gg.modl.bridge.http.BridgeHttpClient;
+import gg.modl.bridge.report.AutoReporter;
 import org.bukkit.event.EventHandler;
 import org.bukkit.event.Listener;
 import org.bukkit.event.player.PlayerQuitEvent;
@@ -21,7 +22,7 @@ public class ModlBridgePlugin extends JavaPlugin implements Listener {
     private BridgeConfig bridgeConfig;
     private BridgeHttpClient httpClient;
     private ViolationTracker violationTracker;
-    private ActionExecutor actionExecutor;
+    private AutoReporter autoReporter;
     private final List<AntiCheatHook> hooks = new ArrayList<>();
     private boolean polarAvailable = false;
 
@@ -48,7 +49,7 @@ public class ModlBridgePlugin extends JavaPlugin implements Listener {
         bridgeConfig = new BridgeConfig(getConfig());
 
         if (!bridgeConfig.isValid()) {
-            getLogger().severe("[ModlBridge] Invalid configuration! Please set your api-key, base-url, and server-domain in config.yml");
+            getLogger().severe("[ModlBridge] Invalid configuration! Please set your api-key in config.yml");
             getLogger().severe("[ModlBridge] Plugin will be disabled.");
             getServer().getPluginManager().disablePlugin(this);
             return;
@@ -57,15 +58,14 @@ public class ModlBridgePlugin extends JavaPlugin implements Listener {
         httpClient = new BridgeHttpClient(
                 bridgeConfig.getBaseUrl(),
                 bridgeConfig.getApiKey(),
-                bridgeConfig.getServerDomain(),
                 bridgeConfig.isDebug(),
                 getLogger()
         );
 
-        violationTracker = new ViolationTracker(bridgeConfig);
-        violationTracker.startDecayTask(this);
+        violationTracker = new ViolationTracker();
+        violationTracker.startCleanupTask(this);
 
-        actionExecutor = new ActionExecutor(this, bridgeConfig, httpClient, violationTracker);
+        autoReporter = new AutoReporter(this, bridgeConfig, httpClient, violationTracker);
 
         // Register quit listener to clean up violation data
         getServer().getPluginManager().registerEvents(this, this);
@@ -75,8 +75,11 @@ public class ModlBridgePlugin extends JavaPlugin implements Listener {
         getCommand("anticheat-ban").setExecutor(punishCommand);
         getCommand("anticheat-kick").setExecutor(punishCommand);
 
+        AnticheatReportCommand reportCommand = new AnticheatReportCommand(this, bridgeConfig, httpClient, violationTracker);
+        getCommand("anticheat-report").setExecutor(reportCommand);
+
         // Hook into GrimAC if available
-        GrimHook grimHook = new GrimHook(this, violationTracker, actionExecutor);
+        GrimHook grimHook = new GrimHook(this, violationTracker, autoReporter);
         if (grimHook.isAvailable()) {
             grimHook.register();
             hooks.add(grimHook);
@@ -84,7 +87,7 @@ public class ModlBridgePlugin extends JavaPlugin implements Listener {
 
         // Hook into Polar if available (non-LoaderApi path, e.g. if Polar loaded before us)
         if (!polarAvailable) {
-            PolarHook polarHook = new PolarHook(this, violationTracker, actionExecutor);
+            PolarHook polarHook = new PolarHook(this, violationTracker, autoReporter);
             if (polarHook.isAvailable()) {
                 polarHook.register();
                 hooks.add(polarHook);
@@ -101,7 +104,7 @@ public class ModlBridgePlugin extends JavaPlugin implements Listener {
     @Override
     public void onDisable() {
         if (violationTracker != null) {
-            violationTracker.stopDecayTask();
+            violationTracker.stopCleanupTask();
         }
 
         for (AntiCheatHook hook : hooks) {
@@ -117,12 +120,12 @@ public class ModlBridgePlugin extends JavaPlugin implements Listener {
     }
 
     private void hookPolar() {
-        if (violationTracker == null || actionExecutor == null) {
+        if (violationTracker == null || autoReporter == null) {
             getLogger().warning("[ModlBridge] Polar enable callback fired but plugin is not fully initialized");
             return;
         }
 
-        PolarHook polarHook = new PolarHook(this, violationTracker, actionExecutor);
+        PolarHook polarHook = new PolarHook(this, violationTracker, autoReporter);
         polarHook.register();
         hooks.add(polarHook);
     }
@@ -131,6 +134,9 @@ public class ModlBridgePlugin extends JavaPlugin implements Listener {
     public void onPlayerQuit(PlayerQuitEvent event) {
         if (violationTracker != null) {
             violationTracker.resetPlayer(event.getPlayer().getUniqueId());
+        }
+        if (autoReporter != null) {
+            autoReporter.clearCooldown(event.getPlayer().getUniqueId());
         }
     }
 }

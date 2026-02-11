@@ -6,9 +6,9 @@ import ac.grim.grimac.api.GrimUser;
 import ac.grim.grimac.api.event.events.FlagEvent;
 import ac.grim.grimac.api.plugin.BasicGrimPlugin;
 import ac.grim.grimac.api.plugin.GrimPlugin;
-import gg.modl.bridge.action.ActionExecutor;
 import gg.modl.bridge.detection.DetectionSource;
 import gg.modl.bridge.detection.ViolationTracker;
+import gg.modl.bridge.report.AutoReporter;
 import org.bukkit.Bukkit;
 import org.bukkit.plugin.java.JavaPlugin;
 
@@ -19,13 +19,13 @@ public class GrimHook implements AntiCheatHook {
 
     private final JavaPlugin plugin;
     private final ViolationTracker violationTracker;
-    private final ActionExecutor actionExecutor;
+    private final AutoReporter autoReporter;
     private GrimAbstractAPI grimApi;
 
-    public GrimHook(JavaPlugin plugin, ViolationTracker violationTracker, ActionExecutor actionExecutor) {
+    public GrimHook(JavaPlugin plugin, ViolationTracker violationTracker, AutoReporter autoReporter) {
         this.plugin = plugin;
         this.violationTracker = violationTracker;
-        this.actionExecutor = actionExecutor;
+        this.autoReporter = autoReporter;
     }
 
     @Override
@@ -71,7 +71,7 @@ public class GrimHook implements AntiCheatHook {
         String checkName = check.getCheckName();
         String verbose = event.getVerbose();
 
-        double accumulatedVL = violationTracker.addViolation(uuid, DetectionSource.GRIM, checkName, verbose);
-        actionExecutor.handleViolation(uuid, playerName, DetectionSource.GRIM, checkName, accumulatedVL, verbose);
+        violationTracker.addViolation(uuid, DetectionSource.GRIM, checkName, verbose);
+        autoReporter.checkAndReport(uuid, playerName, DetectionSource.GRIM, checkName);
     }
 }

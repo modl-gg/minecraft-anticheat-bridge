@@ -33,16 +33,42 @@ public class AnticheatPunishCommand implements CommandExecutor {
         }
 
         if (args.length < 1) {
-            sender.sendMessage("Usage: /" + label + " <player> [reason...]");
+            if (label.equalsIgnoreCase("anticheat-ban")) {
+                sender.sendMessage("Usage: /anticheat-ban <player> [-lenient|-normal|-severe] [reason...]");
+            } else {
+                sender.sendMessage("Usage: /anticheat-kick <player> [reason...]");
+            }
             return true;
         }
 
         String playerName = args[0];
-        String reason = buildReason(args);
-
         boolean isBan = label.equalsIgnoreCase("anticheat-ban");
 
-        // Resolve player UUID - try online player first, then use offline lookup
+        // Parse severity flag and reason from remaining args
+        String severity = "NORMAL";
+        StringBuilder reasonBuilder = new StringBuilder();
+
+        for (int i = 1; i < args.length; i++) {
+            switch (args[i].toLowerCase()) {
+                case "-lenient":
+                    severity = "LOW";
+                    break;
+                case "-normal":
+                    severity = "NORMAL";
+                    break;
+                case "-severe":
+                    severity = "HIGH";
+                    break;
+                default:
+                    if (reasonBuilder.length() > 0) reasonBuilder.append(" ");
+                    reasonBuilder.append(args[i]);
+                    break;
+            }
+        }
+
+        String reason = reasonBuilder.toString();
+
+        // Resolve player UUID
         Player onlinePlayer = Bukkit.getPlayerExact(playerName);
         UUID targetUuid;
         if (onlinePlayer != null) {
@@ -55,40 +81,35 @@ public class AnticheatPunishCommand implements CommandExecutor {
         }
 
         if (isBan) {
-            executeBan(targetUuid, playerName, reason);
+            executeBan(targetUuid, playerName, reason, severity);
         } else {
-            executeKick(targetUuid, playerName, reason, onlinePlayer);
+            executeKick(targetUuid, playerName, reason);
         }
 
         return true;
     }
 
-    private void executeBan(UUID targetUuid, String playerName, String reason) {
+    private void executeBan(UUID targetUuid, String playerName, String reason, String severity) {
         if (reason.isEmpty()) {
-            reason = config.getDefaultPunishReason()
-                    .replace("{source}", "Anticheat")
-                    .replace("{check}", "Detection");
+            reason = "Unfair Advantage";
         }
-
-        long duration = config.getCommandBanDuration();
-        Long durationValue = duration < 0 ? null : duration;
 
         List<String> notes = List.of("Issued via /anticheat-ban console command");
 
         CreatePunishmentRequest request = new CreatePunishmentRequest(
                 targetUuid.toString(),
                 config.getIssuerName(),
-                config.getCommandBanTypeOrdinal(),
+                config.getBanTypeOrdinal(),
                 reason,
-                durationValue,
+                null,
                 null,
                 notes,
                 null,
-                config.getDefaultPunishSeverity(),
+                severity,
                 "ACTIVE"
         );
 
-        plugin.getLogger().info("[ModlBridge] Executing anticheat-ban for " + playerName + ": " + reason);
+        plugin.getLogger().info("[ModlBridge] Executing anticheat-ban for " + playerName + " (severity: " + severity + "): " + reason);
 
         httpClient.createPunishment(request).thenAccept(response -> {
             if (response.isSuccess()) {
@@ -102,7 +123,7 @@ public class AnticheatPunishCommand implements CommandExecutor {
         });
     }
 
-    private void executeKick(UUID targetUuid, String playerName, String reason, Player onlinePlayer) {
+    private void executeKick(UUID targetUuid, String playerName, String reason) {
         if (reason.isEmpty()) {
             reason = "Kicked by anticheat";
         }
@@ -112,17 +133,16 @@ public class AnticheatPunishCommand implements CommandExecutor {
         CreatePunishmentRequest request = new CreatePunishmentRequest(
                 targetUuid.toString(),
                 config.getIssuerName(),
-                config.getCommandKickTypeOrdinal(),
+                config.getKickTypeOrdinal(),
                 reason,
                 0L,
                 null,
                 notes,
                 null,
-                config.getDefaultPunishSeverity(),
+                "NORMAL",
                 "ACTIVE"
         );
 
-        String finalReason = reason;
         plugin.getLogger().info("[ModlBridge] Executing anticheat-kick for " + playerName + ": " + reason);
 
         httpClient.createPunishment(request).thenAccept(response -> {
@@ -135,20 +155,5 @@ public class AnticheatPunishCommand implements CommandExecutor {
             plugin.getLogger().warning("[ModlBridge] Error kicking " + playerName + ": " + throwable.getMessage());
             return null;
         });
-
-        // Also kick locally if configured and player is online
-        if (config.executeKicksLocally() && onlinePlayer != null) {
-            Bukkit.getScheduler().runTask(plugin, () -> onlinePlayer.kickPlayer(finalReason));
-        }
-    }
-
-    private String buildReason(String[] args) {
-        if (args.length <= 1) return "";
-        StringBuilder sb = new StringBuilder();
-        for (int i = 1; i < args.length; i++) {
-            if (sb.length() > 0) sb.append(" ");
-            sb.append(args[i]);
-        }
-        return sb.toString();
     }
 }

@@ -1,6 +1,13 @@
 package gg.modl.bridge.detection;
 
+import java.time.Instant;
+import java.time.ZoneId;
+import java.time.format.DateTimeFormatter;
+
 public class ViolationRecord {
+
+    private static final DateTimeFormatter FORMATTER = DateTimeFormatter.ofPattern("HH:mm:ss")
+            .withZone(ZoneId.systemDefault());
 
     private final DetectionSource source;
     private final String checkName;
@@ -30,8 +37,12 @@ public class ViolationRecord {
         return timestamp;
     }
 
+    public String getFormattedTimestamp() {
+        return FORMATTER.format(Instant.ofEpochMilli(timestamp));
+    }
+
     @Override
     public String toString() {
-        return "[" + source + "] " + checkName + " - " + verbose;
+        return "[" + getFormattedTimestamp() + "] [" + source + "] " + checkName + " | " + verbose;
     }
 }

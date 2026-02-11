@@ -1,5 +1,5 @@
 api-key: "your-api-key-here"
-testing-mode: false
+testing-mode: false # true = api.modl.top (testing), false = api.modl.gg (production)
 debug: false
 
 issuer-name: "Anti-cheat"

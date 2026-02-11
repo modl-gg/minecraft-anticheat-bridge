@@ -1,8 +1,8 @@
 package gg.modl.bridge.hook;
 
-import gg.modl.bridge.action.ActionExecutor;
 import gg.modl.bridge.detection.DetectionSource;
 import gg.modl.bridge.detection.ViolationTracker;
+import gg.modl.bridge.report.AutoReporter;
 import org.bukkit.plugin.java.JavaPlugin;
 import top.polar.api.PolarApi;
 import top.polar.api.PolarApiAccessor;
@@ -15,13 +15,13 @@ public class PolarHook implements AntiCheatHook {
 
     private final JavaPlugin plugin;
     private final ViolationTracker violationTracker;
-    private final ActionExecutor actionExecutor;
+    private final AutoReporter autoReporter;
     private PolarApi polarApi;
 
-    public PolarHook(JavaPlugin plugin, ViolationTracker violationTracker, ActionExecutor actionExecutor) {
+    public PolarHook(JavaPlugin plugin, ViolationTracker violationTracker, AutoReporter autoReporter) {
         this.plugin = plugin;
         this.violationTracker = violationTracker;
-        this.actionExecutor = actionExecutor;
+        this.autoReporter = autoReporter;
     }
 
     @Override
@@ -69,7 +69,7 @@ public class PolarHook implements AntiCheatHook {
         String checkName = event.check().type().name();
         String verbose = event.details();
 
-        double accumulatedVL = violationTracker.addViolation(uuid, DetectionSource.POLAR, checkName, verbose);
-        actionExecutor.handleViolation(uuid, playerName, DetectionSource.POLAR, checkName, accumulatedVL, verbose);
+        violationTracker.addViolation(uuid, DetectionSource.POLAR, checkName, verbose);
+        autoReporter.checkAndReport(uuid, playerName, DetectionSource.POLAR, checkName);
     }
 }
